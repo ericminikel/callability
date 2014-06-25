@@ -47,6 +47,7 @@ cat wes.list | awk '{print "readlink -f "$1}' | bash > wes.hard.list
 # clean up files from first attempt at this analysis, on May 6, 2014
 mkdir old_20140506
 mv cov* old_20140506
+rm -rf jobtemp/*
 
 mkdir jobtemp
 
@@ -77,6 +78,7 @@ do
     done
 done
 
+
 # for re-submitting individual jobs
 # bamlist=wgs.list
 # ilist=be.bed
@@ -96,37 +98,6 @@ done
 #          --omitPerSampleStats \
 #          --minBaseQuality $minbq \
 #          --minMappingQuality $minmq"
-
-# try to get more reproducibility
-mkdir -p 2
-mkdir -p 2/jobtemp
-for ilist in {be.bed,be10.bed,bm.bed,bm10.bed}
-do
-    for bamlist in {wgs.list,wes.list}
-    do
-        for minbq in {0,1,10,20}
-        do
-            for minmq in {0,1,10,20}
-            do
-                bsub -q bweek -W 60:00 -P $RANDOM -J callab -M 8000000 \
-                    -o 2/jobtemp/job.$ilist.$bamlist.out \
-                    -e 2/jobtemp/job.$ilist.$bamlist.err \
-                    "java -Xmx8g -jar $gatkjar \
-                         -R $b37ref \
-                         -T DepthOfCoverage \
-                         -o 2/cov_${ilist}_${bamlist}_${minbq}_${minmq} \
-                         -I $bamlist \
-                         -L $ilist \
-                         --omitDepthOutputAtEachBase \
-                         --omitIntervalStatistics \
-                         --omitPerSampleStats \
-                         --minBaseQuality $minbq \
-                         --minMappingQuality $minmq"
-            done
-        done
-    done
-done
-
 
 
 ####
