@@ -40,17 +40,25 @@ cp broad-exome-slop10only.bed be10.bed
 cp broad-muscle-targets.bed bm.bed
 cp broad-muscle-slop10only.bed bm10.bed
 
+# replace symlinks with hard links to underlying files
+cat wgs.list | awk '{print "readlink -f "$1}' | bash > wgs.hard.list
+cat wes.list | awk '{print "readlink -f "$1}' | bash > wes.hard.list
+
+# clean up files from first attempt at this analysis, on May 6, 2014
+mkdir old_20140506
+mv cov* old_20140506
+
 mkdir jobtemp
 
 for ilist in {be.bed,be10.bed,bm.bed,bm10.bed}
 do
-    for bamlist in {wgs.list,wes.list}
+    for bamlist in {wgs.hard.list,wes.hard.list}
     do
         for minbq in {0,1,10,20}
         do
             for minmq in {0,1,10,20}
             do
-                bsub -q bweek -W 20:00 -P $RANDOM -J callab -M 8000000 \
+                bsub -q bweek -P $RANDOM -J callab -M 8000000 \
                     -o jobtemp/job.$ilist.$bamlist.out \
                     -e jobtemp/job.$ilist.$bamlist.err \
                     "java -Xmx8g -jar $gatkjar \
@@ -88,6 +96,38 @@ done
 #          --omitPerSampleStats \
 #          --minBaseQuality $minbq \
 #          --minMappingQuality $minmq"
+
+# try to get more reproducibility
+mkdir -p 2
+mkdir -p 2/jobtemp
+for ilist in {be.bed,be10.bed,bm.bed,bm10.bed}
+do
+    for bamlist in {wgs.list,wes.list}
+    do
+        for minbq in {0,1,10,20}
+        do
+            for minmq in {0,1,10,20}
+            do
+                bsub -q bweek -W 60:00 -P $RANDOM -J callab -M 8000000 \
+                    -o 2/jobtemp/job.$ilist.$bamlist.out \
+                    -e 2/jobtemp/job.$ilist.$bamlist.err \
+                    "java -Xmx8g -jar $gatkjar \
+                         -R $b37ref \
+                         -T DepthOfCoverage \
+                         -o 2/cov_${ilist}_${bamlist}_${minbq}_${minmq} \
+                         -I $bamlist \
+                         -L $ilist \
+                         --omitDepthOutputAtEachBase \
+                         --omitIntervalStatistics \
+                         --omitPerSampleStats \
+                         --minBaseQuality $minbq \
+                         --minMappingQuality $minmq"
+            done
+        done
+    done
+done
+
+
 
 ####
 # merge output into single file
@@ -289,4 +329,27 @@ java -Xmx8g -jar $gatkjar \
 
 
 
+# create a minimal example to prove non-monotonicity of GATK DepthOfCoverage's output over minmq
+bamlist=wgs.list
+ilist=bm10.bed
+minbq=1
+for minmq in {0..1}
+do
+  bsub -q bhour -W 00:45 -P $RANDOM -J callab -M 2000000 \
+       -o nonmon3/job.$ilist.$bamlist.$minbq.$minmq.out \
+       -e nonmon3/job.$ilist.$bamlist.$minbq.$minmq.err \
+      "java -Xmx8g -jar $gatkjar \
+           -R $b37ref \
+           -T DepthOfCoverage \
+           -o nonmon3/cov_${ilist}_${bamlist}_${minbq}_${minmq} \
+           -I $bamlist \
+           -L $ilist \
+           --omitDepthOutputAtEachBase \
+           --omitIntervalStatistics \
+           --omitPerSampleStats \
+           --minBaseQuality $minbq \
+           --minMappingQuality $minmq"
+done
+
+# for nonmon and nonmon2, the -M was 8000000. for nonmon3 it was 2000000
 
