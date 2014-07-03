@@ -78,13 +78,26 @@ do
     done
 done
 
+# stuck job:
+# java -Xmx8g -
+#                      jar /humgen/gsa-hpprojects/GATK/bin/current/GenomeAnalysis
+#                      TK.jar                          -R /humgen/gsa-hpprojects/
+#                      GATK/bundle/current/b37/human_g1k_v37.fasta
+#                                 -T DepthOfCoverage                          -o
+#                      cov_be.bed_wgs.hard.list_10_1                          -I
+#                      wgs.hard.list                          -L be.bed
+#                                      --omitDepthOutputAtEachBase
+#                                 --omitIntervalStatistics
+#                         --omitPerSampleStats                          --minBase
+#                      Quality 10                          --minMappingQuality 1
 
 # for re-submitting individual jobs
-# bamlist=wgs.list
+# resubmitted this one at 1:44p on 20140628
+# bamlist=wgs.hard.list
 # ilist=be.bed
 # minbq=10
-# minmq=0
-# bsub -q bweek -W 60:00 -P $RANDOM -J callab -M 8000000 \
+# minmq=1
+# bsub -q priority -P $RANDOM -J callab -M 8000000 \
 #      -o jobtemp/job.$ilist.$bamlist.$minbq.$minmq.out \
 #      -e jobtemp/job.$ilist.$bamlist.$minbq.$minmq.err \
 #     "java -Xmx8g -jar $gatkjar \
@@ -99,6 +112,8 @@ done
 #          --minBaseQuality $minbq \
 #          --minMappingQuality $minmq"
 
+# confirmed that no jobs failed
+grepk exit jobtemp/*.out
 
 ####
 # merge output into single file
@@ -109,7 +124,7 @@ echo -en "ilist\tbamlist\tminbq\tminmq\tnsamp" > all_cc.txt
 cat *coverage_counts | head -1 >> all_cc.txt
 for ilist in {be.bed,be10.bed,bm.bed,bm10.bed}
 do
-    for bamlist in {wgs.list,wes.list}
+    for bamlist in {wgs.hard.list,wes.hard.list}
     do
         for minbq in {0,1,10,20}
         do
@@ -134,7 +149,7 @@ echo -en "ilist\tbamlist\tminbq\tminmq\tsid" > all_cp.txt
 cat *coverage_proportions | head -1 >> all_cp.txt
 for ilist in {be.bed,be10.bed,bm.bed,bm10.bed}
 do
-    for bamlist in {wgs.list,wes.list}
+    for bamlist in {wgs.hard.list,wes.hard.list}
     do
         for minbq in {0,1,10,20}
         do
@@ -299,8 +314,8 @@ java -Xmx8g -jar $gatkjar \
     -GF GT -GF AD -GF DP -GF GQ -GF PL
 
 
-
-# create a minimal example to prove non-monotonicity of GATK DepthOfCoverage's output over minmq
+# after first run failed, I created this minimal example to prove
+# non-monotonicity of GATK DepthOfCoverage's output over minmq
 bamlist=wgs.list
 ilist=bm10.bed
 minbq=1
@@ -321,6 +336,17 @@ do
            --minBaseQuality $minbq \
            --minMappingQuality $minmq"
 done
-
 # for nonmon and nonmon2, the -M was 8000000. for nonmon3 it was 2000000
+
+# find baits of interest for post
+cat $agilentbaits | grep ^2 | awk '$2 == 47641406 {print $0}'
+# 2 47641406  47641559  + target_20209
+
+cat $agilentbaits | grep ^5 | awk '$2 == 140186771 {print $0}'
+
+
+
+
+
+
 

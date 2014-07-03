@@ -24,14 +24,14 @@ for (n in 1:500) {
 # map sample names to fake sample names
 name_mapping = data.frame(sid=unique(cp$sid),fakesid=paste("S",1:11,sep=""))
 # map WGS and WES to their respective colors
-k_mapping = data.frame(bamlist=c("wgs.list","wes.list"),k=c(gcolor,ecolor))
+k_mapping = data.frame(bamlist=c("wgs.hard.list","wes.hard.list"),k=c(gcolor,ecolor))
 
 # compare WES vs. WGS mean coverage for all samples
 png('img/meancov.png',width=600,height=400)
 all_ex = cp$minbq==0 & cp$minmq==0 & cp$ilist=="be.bed"
-to_plot = rbind(cp$meancov[all_ex & cp$bamlist=="wgs.list"],
-                cp$meancov[all_ex & cp$bamlist=="wes.list"])
-# colnames(to_plot) = cp$sid[all_ex & cp$bamlist=="wgs.list"]
+to_plot = rbind(cp$meancov[all_ex & cp$bamlist=="wgs.hard.list"],
+                cp$meancov[all_ex & cp$bamlist=="wes.hard.list"])
+# colnames(to_plot) = cp$sid[all_ex & cp$bamlist=="wgs.hard.list"]
 colnames(to_plot) = paste("S",1:11,sep="")
 to_plot
 barplot(to_plot,beside=TRUE,col=c(gcolor,ecolor),border=NA,
@@ -54,24 +54,98 @@ plot(NA,NA,xlim=c(1,4),ylim=c(1,120),xaxt='n',ylab='Mean depth',xlab='',
      main='Mean coverage of 11 samples by target set')
 subs = cp$minbq==0 & cp$minmq==0
 for (sid in unique(cp$sid)) {
-  points(1:4,cp$meancov[subs & cp$sid==sid & cp$bamlist=='wgs.list'],col=gcolor,type='b',pch=18,lwd=3)
-  points(1:4,cp$meancov[subs & cp$sid==sid & cp$bamlist=='wes.list'],col=ecolor,type='b',pch=18,lwd=3)
+  points(1:4,cp$meancov[subs & cp$sid==sid & cp$bamlist=='wgs.hard.list'],col=gcolor,type='b',pch=18,lwd=3)
+  points(1:4,cp$meancov[subs & cp$sid==sid & cp$bamlist=='wes.hard.list'],col=ecolor,type='b',pch=18,lwd=3)
 }
 axis(side=1,at=1:4,labels=c("Broad exome","+-10bp","muscle exons","+-10bp"),lwd.ticks=0)
 legend('bottomleft',c("WGS","WES"),col=c(gcolor,ecolor),pch=18,cex=.8)
 dev.off()
 
+# check monotonicity over minmq
+for (minbq in unique(cp$minbq)) {
+  for (bamlist in unique(cp$bamlist)) {
+    for (ilist in unique(cp$ilist)) {
+      for (sid in unique(cp$sid)) {
+        subs2 = cp$minbq==minbq & cp$ilist==ilist & cp$bamlist==bamlist & cp$sid==sid
+        if (!(all(cp$meancov[subs2]==cummin(cp$meancov[subs2])))) {
+          print(paste(bamlist,ilist,minbq,sid))
+        }
+      }
+    }
+  }
+}
+
+# inspect non-monotonic instances
+ilist = 'be.bed'
+bamlist='wes.hard.list'
+minbq = 1
+sid = '25H_JM_1'
+subs2 = cp$minbq==minbq & cp$ilist==ilist & cp$bamlist==bamlist & cp$sid==sid
+cp$meancov[subs2]
+tempview = cp[subs2,]
+# the non-monotonicity is very slight ( <0.5x difference) and appears to owe to rounding error in the average.
+# if you look at any one depth threshold, e.g. gte_15, gte_30, etc. they are all monotonic.
+# the below code confirms that coverage at any given depth is monotonic.
+mat = t(as.matrix(tempview[,6:506]))
+which(mat[,2] > mat[,1])
+which(mat[,3] > mat[,2])
+which(mat[,4] > mat[,3])
+
+
+
+# check monotonicity over minbq
+for (minmq in unique(cp$minbq)) {
+  for (bamlist in unique(cp$bamlist)) {
+    for (ilist in unique(cp$ilist)) {
+      for (sid in unique(cp$sid)) {
+        subs2 = cp$minmq==minmq & cp$ilist==ilist & cp$bamlist==bamlist & cp$sid==sid
+        if (!(all(cp$meancov[subs2]==cummin(cp$meancov[subs2])))) {
+          print(paste(bamlist,ilist,minmq,sid))
+        }
+      }
+    }
+  }
+}
+# only one instance
+
+# inspect non-monotonic instances
+ilist = 'bm.bed'
+bamlist='wes.hard.list'
+minmq = 0
+sid = '25H_JM_1'
+subs2 = cp$minmq==minmq & cp$ilist==ilist & cp$bamlist==bamlist & cp$sid==sid
+cp$meancov[subs2]
+cp$minbq[subs2]
+tempview = cp[subs2,]
+# once again, this is just due to rounding error. below code shows that any one depth is montonic
+mat = t(as.matrix(tempview[,6:506]))
+which(mat[,2] > mat[,1])
+which(mat[,3] > mat[,2])
+which(mat[,4] > mat[,3])
+
+
+# after the original 2014-05-06 run I *had* found depths where the coverage was non-monotonic
+# over minbq or minmq. these examples are actually direct from GATK:
+#$ cat cov_bm10.bed_wgs.hard.list_1_0.sample_cumulative_coverage_proportions | grep ^66T | cut -f62
+#.76
+#$cat cov_bm10.bed_wgs.hard.list_1_1.sample_cumulative_coverage_proportions | grep ^66T | cut -f62
+#0.77
+
+
 
 # how does mean coverage drop off according to MQ?
 png('img/meancov_by_mapq_and_targetset.png',width=600,height=400)
-subs = cp$minbq==0  & cp$sid == name_mapping$sid[name_mapping$fakesid=='S11']
+subs = cp$minbq==0 & cp$sid == name_mapping$sid[name_mapping$fakesid=='S11']
 plot(cp$minmq[subs],cp$meancov[subs],pch='.',xlab='Min MAPQ',ylab='Mean depth',
      xlim=c(0,23),main='Mean coverage by minimum MAPQ and target set in S11')
-for (sid in unique(cp$sid)) {
-  for (bamlist in unique(cp$bamlist)) {
-    for (ilist in unique(cp$ilist)) {
-      if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+for (bamlist in unique(cp$bamlist)) {
+  for (ilist in unique(cp$ilist)) {
+    for (sid in unique(cp$sid)) {
+      if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
       subs2 = subs & cp$ilist==ilist & cp$bamlist==bamlist & cp$sid==sid
+      if (!(all(cp$meancov[subs2]==cummin(cp$meancov[subs2])))) {
+        print(paste(bamlist,ilist,sid))
+      }
       points(cp$minmq[subs2], cp$meancov[subs2], type='b', lwd=3, pch=18, col=k)
     }
   }
@@ -83,6 +157,7 @@ legend('bottomleft',c("WGS","WES"),col=c(gcolor,ecolor),pch=18,cex=.8)
 dev.off()
 # conclusion: you take a big hit going from minimum MAPQ of 0 to 1
 # but almost no hit from 1 to 10 or 20
+
 
 m = lm(meancov ~ minmq*bamlist, data=subset(cp, minbq==0 & minmq %in% c(0,1)))
 summary(m)
@@ -99,7 +174,7 @@ plot(cp$minbq[subs],cp$meancov[subs],pch='.',xlab='Min BQ',ylab='Mean depth',
 for (sid in unique(cp$sid)) {
   for (bamlist in unique(cp$bamlist)) {
     for (ilist in unique(cp$ilist)) {
-      if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+      if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
       subs2 = subs & cp$ilist==ilist & cp$bamlist==bamlist & cp$sid==sid
       points(cp$minbq[subs2], cp$meancov[subs2], type='b', lwd=3, pch=18, col=k)
     }
@@ -128,10 +203,11 @@ plot(cp$minmq[subs],cp$gte_20[subs],pch='.',xlab='Min MAPQ',ylab='% at 20x+ dept
      main='% of Broad Exome covered at 20x+
      by sample, MAPQ and WGS vs. WES')
 axis(side=2,at=seq(.75,1,.05),labels=paste(seq(.75,1,.05)*100,"%",sep=""))
+axis(side=1,at=c(0,1,10,20),labels=c(0,1,10,20))
 for (sid in unique(cp$sid)) {
   for (bamlist in unique(cp$bamlist)) {
     
-      if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+      if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
       subs2 = subs & cp$bamlist==bamlist & cp$sid==sid
       points(cp$minmq[subs2], cp$gte_20[subs2], type='b', lwd=3, pch=18, col=k)
     
@@ -148,15 +224,16 @@ dev.off()
 # how about % of Broad Exome at > 20x vs. min mq
 png('img/be01plus_vs.minmq.png',width=600,height=400)
 subs = cp$minbq==0 & cp$ilist=='be.bed'
-plot(cp$minmq[subs],cp$gte_1[subs],pch='.',xlab='Min MAPQ',ylab='% at 20x+ depth',
+plot(cp$minmq[subs],cp$gte_1[subs],pch='.',xlab='Min MAPQ',ylab='% at 1x+ depth',
      ylim=c(.75,1),yaxs='i',xaxt='n',yaxt='n',
      main='% of Broad Exome covered at 1x+
      by sample, MAPQ and WGS vs. WES')
 axis(side=2,at=seq(.75,1,.05),labels=paste(seq(.75,1,.05)*100,"%",sep=""))
+axis(side=1,at=c(0,1,10,20),labels=c(0,1,10,20))
 for (sid in unique(cp$sid)) {
   for (bamlist in unique(cp$bamlist)) {
     
-    if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+    if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
     subs2 = subs & cp$bamlist==bamlist & cp$sid==sid
     points(cp$minmq[subs2], cp$gte_1[subs2], type='b', lwd=3, pch=18, col=k)
     
@@ -169,13 +246,15 @@ dev.off()
 # how about % at > 20x vs. min bq
 png('img/be20plus_vs.minbq.png',width=600,height=400)
 subs = cp$minmq==0 & cp$ilist == 'be.bed'
-plot(cp$minbq[subs],cp$gte_20[subs],pch='.',xlab='Min BQ',ylab='% at 20x+',
+plot(cp$minbq[subs],cp$gte_20[subs],pch='.',xlab='Min BQ',ylab='% at 20x+ depth',
      ylim=c(.75,1),yaxs='i',xaxt='n',yaxt='n',
      main='% of Broad Exome covered at 20x+
      by sample, BQ and WGS vs. WES')
+axis(side=2,at=seq(.75,1,.05),labels=paste(seq(.75,1,.05)*100,"%",sep=""))
+axis(side=1,at=c(0,1,10,20),labels=c(0,1,10,20))
 for (bamlist in unique(cp$bamlist)) {
   for (sid in unique(cp$sid)) {
-    if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+    if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
     subs2 = subs & cp$sid==sid & cp$bamlist==bamlist
     points(cp$minbq[subs2], cp$gte_20[subs2], type='b', lwd=3, pch=18, col=k)
   }
@@ -196,7 +275,7 @@ axis(side=2,at=(0:10)/10,labels=paste((0:10)*10,"%",sep=""))
 for (sid in unique(cp$sid)) {
   for (bamlist in unique(cp$bamlist)) {
     subs2 = subs & cp$sid==sid & cp$bamlist==bamlist
-    if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+    if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
     points(0:dmax,cp[subs2,gte0index:(gte0index+dmax)], type='l', lwd=3, col=k)
   }
 }
@@ -217,7 +296,7 @@ axis(side=2,at=(0:10)/10,labels=paste((0:10)*10,"%",sep=""))
 for (sid in unique(cp$sid)) {
   for (bamlist in unique(cp$bamlist)) {
     subs2 = subs & cp$sid==sid & cp$bamlist==bamlist
-    if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+    if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
     points(0:dmax,cp[subs2,gte0index:(gte0index+dmax)], type='l', lwd=3, col=k)
   }
 }
@@ -227,8 +306,8 @@ abline(v=20,col='red')
 dev.off()
 
 # check 10x+ coverage
-wgs_10 = cp$gte_10[cp$minmq == 1 & cp$minbq == 20 & cp$ilist=="be.bed" & cp$bamlist=='wgs.list']
-wes_10 = cp$gte_10[cp$minmq == 1 & cp$minbq == 20 & cp$ilist=="be.bed" & cp$bamlist=='wes.list']
+wgs_10 = cp$gte_10[cp$minmq == 1 & cp$minbq == 20 & cp$ilist=="be.bed" & cp$bamlist=='wgs.hard.list']
+wes_10 = cp$gte_10[cp$minmq == 1 & cp$minbq == 20 & cp$ilist=="be.bed" & cp$bamlist=='wes.hard.list']
 mean(wgs_10)
 mean(wes_10)
 
@@ -243,7 +322,7 @@ axis(side=2,at=(0:10)/10,labels=paste((0:10)*10,"%",sep=""))
 for (sid in unique(cp$sid)) {
   for (bamlist in unique(cp$bamlist)) {
     subs2 = subs & cp$sid==sid & cp$bamlist==bamlist
-    if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+    if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
     points(0:dmax,cp[subs2,gte0index:(gte0index+dmax)], type='l', lwd=3, col=k)
   }
 }
@@ -265,7 +344,7 @@ axis(side=2,at=(0:10)/10,labels=paste((0:10)*10,"%",sep=""))
 for (sid in unique(cp$sid)) {
   for (bamlist in unique(cp$bamlist)) {
     subs2 = subs & cp$sid==sid & cp$bamlist==bamlist
-    if (bamlist=="wgs.list") {k = gcolor} else if (bamlist=="wes.list") {k=ecolor}
+    if (bamlist=="wgs.hard.list") {k = gcolor} else if (bamlist=="wes.hard.list") {k=ecolor}
     points(0:dmax,cp[subs2,gte0index:(gte0index+dmax)], type='l', lwd=3, col=k)
   }
 }
@@ -280,7 +359,7 @@ dev.off()
 # using them in the blog post.
 png('img/3dcov_be_wgs.png',width=400,height=400)
 ccmat = as.matrix(cc[cc$ilist=='be.bed' & 
-                             cc$bamlist=='wgs.list' & 
+                             cc$bamlist=='wgs.hard.list' & 
                              cc$minbq==20 & 
                              cc$minmq==1,6:506])
 #k= colorRampPalette(c("white","darkgreen"))(100)
@@ -301,7 +380,7 @@ dev.off()
 
 png('img/3dcov_be_wes.png',width=400,height=400)
 ccmat = as.matrix(cc[cc$ilist=='be.bed' & 
-                       cc$bamlist=='wes.list' & 
+                       cc$bamlist=='wes.hard.list' & 
                        cc$minbq==0 & 
                        cc$minmq==0,6:506])
 #k= colorRampPalette(c("white","darkgreen"))(100)
@@ -470,10 +549,24 @@ and      e.alt = g.alt
 and      (g.filter=='PASS' and e.filter=='PASS')
 ;") 
 inboth_passcount
+inboth_passcount/inboth
+
+inboth_pass = sqldf("
+select   *
+from     wgs g, wes e
+where    e.chrom = g.chrom
+and      e.pos = g.pos
+and      e.ref = g.ref
+and      e.alt = g.alt
+and      (g.filter=='PASS' and e.filter=='PASS')
+;") 
 
 wgsonly = as.integer(wgsonly)
 wesonly = as.integer(wesonly)
 inboth = as.integer(inboth)
+wgsonly+inboth
+wesonly+inboth
+exactgtsame
 
 png('img/alt_allele_venn.png',width=600,height=400)
 draw.pairwise.venn(wesonly+inboth,wgsonly+inboth,inboth,
