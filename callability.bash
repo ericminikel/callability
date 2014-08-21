@@ -345,8 +345,46 @@ cat $agilentbaits | grep ^2 | awk '$2 == 47641406 {print $0}'
 cat $agilentbaits | grep ^5 | awk '$2 == 140186771 {print $0}'
 
 
+### look at LCRs re: Brad Chapman's question
+cat LCR-hs37d5.bed | grep -v NC | grep -v hs37d5 > LCR-b37-only.bed
 
+java -Xmx8g -jar $gatkjar \
+   -R $b37ref \
+   -T SelectVariants \
+   -V wes.vcf \
+   -L LCR-b37-only.bed \
+   -o wes.lcr.vcf
 
+java -Xmx8g -jar $gatkjar \
+   -R $b37ref \
+   -T SelectVariants \
+   -V wgs.vcf \
+   -L LCR-b37-only.bed \
+   -o wgs.lcr.vcf
+
+java -Xmx8g -jar $gatkjar \
+    -R $b37ref \
+    -T VariantsToTable \
+    --splitMultiAllelic \
+    -V wes.lcr.vcf \
+    -o wes.lcr.table \
+    --variant_index_type LINEAR \
+    --allowMissingData \
+    --showFiltered \
+    -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER -F AC -F DP \
+    -GF GT -GF AD -GF DP -GF GQ -GF PL
+
+java -Xmx8g -jar $gatkjar \
+    -R $b37ref \
+    -T VariantsToTable \
+    --splitMultiAllelic \
+    -V wgs.lcr.vcf \
+    -o wgs.lcr.table \
+    --variant_index_type LINEAR \
+    --allowMissingData \
+    --showFiltered \
+    -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER -F AC -F DP \
+    -GF GT -GF AD -GF DP -GF GQ -GF PL
 
 
 
