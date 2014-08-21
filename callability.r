@@ -567,6 +567,7 @@ inboth = as.integer(inboth)
 wgsonly+inboth
 wesonly+inboth
 exactgtsame
+exactgtsame/inboth
 
 png('img/alt_allele_venn.png',width=600,height=400)
 draw.pairwise.venn(wesonly+inboth,wgsonly+inboth,inboth,
@@ -583,9 +584,7 @@ draw.pairwise.venn(dim(wes_only_pass)[1]+as.integer(inboth_passcount),
                    category=c("WES","WGS"),cex=.7,cat.fontfamily='sans',
                    euler.d=TRUE,scaled=TRUE,fontfamily='sans')
 dev.off()
-# didn't end up using this in the blog post because
-# the VennDiagram package randomly switches the order of the circles
-# on you and that makes it not look consistent from plot to plot.
+
 
 dim(wes)[1]
 dim(wgs)[1]
@@ -680,6 +679,17 @@ length(wgs_gq20_sites)/dim(wgs_only_pass)[1] # proportion of sites with at least
 wgs_goodqual = length(wgs_gq20_sites)
 wes_goodqual = length(wes_gq20_sites)
 both_pass = as.integer(inboth_passcount)
+
+png('img/alt_allele_venn_goodquality.png',width=600,height=400)
+draw.pairwise.venn(wes_goodqual+both_pass,
+                   wgs_goodqual+both_pass,
+                   both_pass,
+                   fill=c(ecolor,gcolor),lwd=0,alpha=c(.6,.8),
+                   category=c("WES","WGS"),cex=.7,cat.fontfamily='sans',
+                   euler.d=TRUE,scaled=TRUE,fontfamily='sans')
+dev.off()
+
+
 
 png('img/alt_allele_venn_goodqual.png',width=600,height=400)
 draw.pairwise.venn(
